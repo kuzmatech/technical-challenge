@@ -19,6 +19,23 @@ class Product(Model):
   currency = CharField(max_length=3)
   in_stock_quantity = IntegerField()
 
+  def purchase(self, quantity: int = 1):
+    if self.in_stock_quantity < quantity:
+      raise self.OutOfStockError(self.in_stock_quantity)
+    else:
+      self.in_stock_quantity -= quantity
+      self.save()
+    return self.in_stock_quantity
+  class OutOfStockError(Exception):
+    """Raised when a purchase attempt is made but there is not enough stock.
+    
+    Attributes:
+    available -- The amount of said product available
+    """
+    def __init__(self, available: int):
+      self.available = available
+      self.message = f"There are {available} available of this product."
+      super().__init__(self.message)
   class Meta:
     database = db
 
