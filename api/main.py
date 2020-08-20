@@ -18,7 +18,7 @@ jwt = JWT(app, authenticate, identity)
 def forbidden(msg):
     return make_response(jsonify({"message": msg}), 403)
 
-api.add_resource(GiftListView, '/gift_list')
+api.add_resource(GiftListView, '/gift_list', '/gift_list/<int:g_id>')
 
 if __name__ == '__main__':
   from storage import User, Product
