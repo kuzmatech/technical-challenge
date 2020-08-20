@@ -1,7 +1,7 @@
 from os import environ
 from flask import Flask, Response, make_response, jsonify, request
 from flask_restful import Api
-from flask_jwt import JWT, jwt_required
+from flask_jwt import JWT, jwt_required, current_identity
 from storage import StorageInstance
 from handlers import authenticator
 from views.giftlist import GiftListView
@@ -19,6 +19,33 @@ def forbidden(msg):
     return make_response(jsonify({"message": msg}), 403)
 
 api.add_resource(GiftListView, '/gift_list', '/gift_list/<int:g_id>')
+
+@app.route('/api/gift_list/<int:gift_list_id>/purchase/<int:product_id>', methods=["GET"])
+@jwt_required()
+def purchase_product(gift_list_id: int, product_id: int):
+  from handlers.giftlist import purchase_gift
+  from storage import GiftList
+  quantity = request.args.get('quantity') or None
+  if quantity is None:
+    return make_response(jsonify({"message": "You must provide a quantity of products to purchase."}), 400)
+  try:
+    gift_list = GiftList.get(GiftList.id == gift_list_id)
+  except GiftList.DoesNotExist:
+    return make_response(jsonify({"message": "Gift list does not exist"}), 404)
+  owner = gift_list.user
+  if current_identity.get().id is not owner.id:
+    print(current_identity.get())
+    print(owner)
+    return forbidden("You must own a gift list to modify it.")
+  try:
+    success = purchase_gift(gift_list, product_id, int(quantity))
+  except ValueError:
+    return make_response(jsonify({"message": "This product is not in this gift list."}), 400)
+  if success is True:
+    updated_product = gift_list.get().gifts[f"{product_id}"]
+    return jsonify({"purchased": updated_product})
+  else:
+    return make_response(jsonify({"message": f"There are only {success} of this product available."}), 409)
 
 if __name__ == '__main__':
   from storage import User, Product
