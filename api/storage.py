@@ -1,12 +1,15 @@
-import sys
-from peewee import SqliteDatabase, Model, CharField, IntegerField, DecimalField, AutoField
+import sys, bcrypt
 from numbers import Real
 from decimal import Decimal
+from typing import Tuple
+from peewee import SqliteDatabase, Model, CharField, IntegerField, DecimalField, AutoField, ForeignKeyField, DateTimeField
+from playhouse.sqlite_ext import SqliteExtDatabase, JSONField
+from datetime import datetime
 
 if "pytest" in sys.modules:
-  db = SqliteDatabase(":memory:")
+  db = SqliteExtDatabase(":memory:")
 else:
-  db = SqliteDatabase("test.db")
+  db = SqliteExtDatabase("test.db")
 
 class Product(Model):
   id = AutoField(primary_key=True)
@@ -19,11 +22,37 @@ class Product(Model):
   class Meta:
     database = db
 
+class User(Model):
+  id = AutoField(primary_key=True)
+  username = CharField(unique=True)
+  password = CharField()
+
+  @staticmethod
+  def add_user(username: str, password: str):
+    salt = bcrypt.gensalt()
+    pass_bytes = password.encode('utf-8')
+    hashed_pass = bcrypt.hashpw(pass_bytes, salt)
+    new_user = User.create(username=username, password=hashed_pass)
+    return new_user
+
+  class Meta:
+    database = db
+
+class GiftList(Model):
+  id = AutoField(primary_key=True)
+  user = ForeignKeyField(User, backref='giftlist', unique=True)
+  created = DateTimeField()
+  due = DateTimeField()
+  gifts = JSONField(null = True)
+
+  class Meta:
+    database = db
+
 class StorageInstance:
   def __init__(self):
     self.db = db
     self.db.connect()
-    self.db.create_tables([Product])
+    self.db.create_tables([Product, User, GiftList])
 
   def save_product(self, product_name: str, product_brand: str, product_price: Real, product_currency: str , product_stock: int) -> Product:
     new_product = Product.create(name=product_name, brand=product_brand, price=product_price, currency=product_currency, in_stock_quantity=product_stock)
@@ -51,3 +80,39 @@ class StorageInstance:
         transaction.rollback()
         return False
     return True
+
+  def check_password(self, user: User, password: str) -> bool:
+    user_pass = user.password
+    pass_bytes = password.encode('utf-8')
+    return bcrypt.checkpw(pass_bytes, user_pass)
+
+  def __add_gift_to_list(self, gift_list: GiftList, gift: dict) -> bool:
+    gift_id = gift["product_id"]
+    gift_list_id = gift_list.id
+    if gift_list.gifts is not None:
+      query = GiftList.update(gifts=GiftList.gifts.update({f"{gift_id}": gift})).where(GiftList.id == gift_list_id)
+      query.execute()
+    else:
+      gift_list.gifts = {f"{gift_id}": gift}
+      gift_list.save()
+    return True
+  
+  def __update_gift_in_list_by_id(self, gift_list_id: int, gift: dict) -> bool:
+    gift_id = gift["product_id"]
+    query = GiftList.update(gifts=GiftList.gifts[f"{gift_id}"].set(gift)).where(GiftList.id == gift_list_id)
+    query.execute()
+    return True
+
+  def create_new_gift_list(self, user: User, due_date: datetime, gifts: dict = {}) -> GiftList:
+    current_datetime = datetime.now()
+    new_gift_list = GiftList.create(user=user, created=current_datetime, due=due_date, gifts=gifts)
+    return new_gift_list
+
+  def add_gift_to_list_by_id(self, gift_list_id: int, gift_dict: dict) -> bool:
+    gift_list = GiftList.get(GiftList.id == gift_list_id)
+    success = self.__add_gift_to_list(gift_list, gift_dict)
+    return success
+  
+  def update_gift_in_list_by_id(self, gift_list_id: int, gift_dict: dict) -> bool:
+    success = self.__update_gift_in_list_by_id(gift_list_id, gift_dict)
+    return success
