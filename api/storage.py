@@ -59,7 +59,7 @@ class GiftList(Model):
 class StorageInstance:
   def __init__(self):
     self.db = db
-    self.db.connect()
+    self.db.connect(reuse_if_open=True)
     self.db.create_tables([Product, User, GiftList])
 
   def save_product(self, product_name: str, product_brand: str, product_price: Real, product_currency: str , product_stock: int) -> Product:
