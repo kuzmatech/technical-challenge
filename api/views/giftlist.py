@@ -48,8 +48,8 @@ class GiftListView(Resource):
     if current_user != g_list.user:
       abort(401, message="Must be the owner of a gift list to modify.")
     if updated_gifts is not None or updated_gifts is not {}:
-      query = GiftList.update(gifts=GiftList.gifts.update(updated_gifts)).where(GiftList.id == gift_list_id)
-      query.execute()
+      g_list.gifts = updated_gifts
+      g_list.save()
     if due is not None or "":
       from datetime import datetime
       due_date = datetime.strptime(due, '%Y-%m-%d %H:%M:%S.%f')
