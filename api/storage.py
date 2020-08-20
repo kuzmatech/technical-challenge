@@ -45,6 +45,14 @@ class GiftList(Model):
   due = DateTimeField()
   gifts = JSONField(null = True)
 
+  def to_dict(self) -> dict:
+    return_dict = {}
+    return_dict["id"] = self.id
+    return_dict["created"] = f"{self.created}"
+    return_dict["due"] = f"{self.due}"
+    return_dict["gifts"] = self.gifts
+    return return_dict
+
   class Meta:
     database = db
 
